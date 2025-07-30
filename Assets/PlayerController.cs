@@ -26,12 +26,15 @@ public class PlayerController : MonoBehaviour
     public bool ceilingHit = false;
     public bool isGrounded = true;
 
-    [Header("PIVOT TWEAKER")]
+    [Header("PIVOT VARIABLES")]
     public float ropeLength;
     public float speed;
     public float angularVelocity;
     private float swingAngle;
-    private Vector3 pivotPosition;  
+    private Vector3 pivotPosition;
+
+    [Header("PROCEDURAL VARIABLES")]
+    private bool isRight = true;
 
 
     //------------------------------------------------------------------------------------------------- ON UPDATE -------------------------------------------------------------------------------------------------
@@ -40,27 +43,13 @@ public class PlayerController : MonoBehaviour
     {
         ReadInput();
 
-        if (moveDir > 0)
-        {
-            Vector3 localEuler = Body.transform.localEulerAngles;
-            localEuler.y = -6.445f;
-            Body.transform.localEulerAngles = localEuler;
-        }
+        RotateBodyFoward();
 
-        else if (moveDir < 0)
-        {
-            Vector3 localEuler = Body.transform.localEulerAngles;
-            localEuler.y = -6.445f + 180f;
-            Body.transform.localEulerAngles = localEuler;
-        }
-
-            Debug.Log(currentState);
+        Debug.Log(currentState);
 
         DetectPivotIfAirborne();
 
-
-
-        //Different pivot logic
+        //Pivot physics
         if (currentState == MovementState.Pivot)
         {
             Vector3 newPos = physicsCalculator.CalculateVelocity(
@@ -76,11 +65,10 @@ public class PlayerController : MonoBehaviour
                 pivotPosition,
                 ropeLength,
                 Time.deltaTime);
-
             transform.position = newPos;
-            velocity = Vector3.zero;
+            //velocity = Vector3.zero;
         }
-        //Normal movement logic
+        //Normal movement physics
         else
         {
             velocity = physicsCalculator.CalculateVelocity(
@@ -101,9 +89,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-
     //------------------------------------------------------------------------------------------------- INPUT -------------------------------------------------------------------------------------------------
-
     void ReadInput() //This has been put in update
     {
         // Basic horizontal input
@@ -127,7 +113,7 @@ public class PlayerController : MonoBehaviour
         // Pivot release
         if (currentState == MovementState.Pivot && Input.GetKeyUp(KeyCode.J))
         {
-            Debug.Log("unpressed J");
+            //Debug.Log("unpressed J");
             DetachFromPivot();
         }
     }
@@ -172,6 +158,7 @@ public class PlayerController : MonoBehaviour
             velocity.x = 0;
         }
     }
+
     //------------------------------------------------------------------------------------------------- STATE LOGIC -------------------------------------------------------------------------------------------------
     void EnterAirborne()
     {
@@ -209,20 +196,19 @@ public class PlayerController : MonoBehaviour
         //float baseAngular = velocity.x / Mathf.Max(ropeLength, 0.01f);
         //angularVelocity = Mathf.Sign(baseAngular) * Mathf.Max(Mathf.Abs(baseAngular) * 1.5f, 2.3f);
 
-        float baseAngular = Mathf.Abs(velocity.x) / velocity.x;
+        //float baseAngular = Mathf.Abs(velocity.x) / velocity.x;
+        float baseAngular = 1;
+        if (isRight) { baseAngular = 1; } else if (!isRight) { baseAngular = -1; }
+
         angularVelocity = baseAngular * speed;
 
         //  SNAP player exactly onto the rope arc
-        Vector3 offset = new Vector3(
-            Mathf.Sin(swingAngle),
-            -Mathf.Cos(swingAngle),
-            0f
-        ) * ropeLength;
+        Vector3 offset = new Vector3(Mathf.Sin(swingAngle), -Mathf.Cos(swingAngle), 0f) * ropeLength;
         transform.position = pivotPosition + offset;
 
         currentState = MovementState.Pivot;
 
-        Debug.Log($"AttachToPivot: {pivot.name}, ropeLength={ropeLength}, swingAngle={swingAngle}, angularVel={angularVelocity}");
+        //Debug.Log($"AttachToPivot: {pivot.name}, ropeLength={ropeLength}, swingAngle={swingAngle}, angularVel={angularVelocity}");
     }
 
     void DetachFromPivot()
@@ -233,10 +219,31 @@ public class PlayerController : MonoBehaviour
 
         currentState = MovementState.Airborne;
     }
+
+    //------------------------------------------------------------------------------------------------- PROCEDURAL LOGIC -------------------------------------------------------------------------------------------------
+    void RotateBodyFoward()
+    {
+        if (moveDir > 0)
+        {
+            Vector3 localEuler = Body.transform.localEulerAngles;
+            localEuler.y = -6.445f;
+            Body.transform.localEulerAngles = localEuler;
+
+            isRight = true;
+        }
+
+        else if (moveDir < 0)
+        {
+            Vector3 localEuler = Body.transform.localEulerAngles;
+            localEuler.y = -6.445f + 180f;
+            Body.transform.localEulerAngles = localEuler;
+
+            isRight = false;
+        }
+    }
 }
 
 //------------------------------------------------------------------------------------------------- STATES ENUM -------------------------------------------------------------------------------------------------
-// Enum for states
 public enum MovementState
 {
     Grounded,

@@ -36,42 +36,28 @@ public class PhysicsCalculator
 
             //--------------------------------------------------------------------------------------- PIVOT ----------------------------------------------------------------------------------------------
             case MovementState.Pivot:
-                return CalculatePivotSwing(
-                    ref swingAngle,
-                    ref angularVelocity,
-                    pivotPosition,
-                    ropeLength,
-                    deltaTime
-                );
+
+                float gravity = 9.81f;
+
+                // Pendulum angular acceleration
+                float angularAcceleration = -(gravity / ropeLength) * Mathf.Sin(swingAngle);
+
+                // Update angular velocity + angle
+                angularVelocity += angularAcceleration * deltaTime;
+                swingAngle += angularVelocity * deltaTime;
+
+                // Constrained offset from pivot
+                Vector3 offset = new Vector3(
+                    Mathf.Sin(swingAngle),
+                    -Mathf.Cos(swingAngle),
+                    0f
+                ) * ropeLength;
+
+                // Return absolute new position
+                return pivotPosition + offset;
 
             default:
                 return currentVelocity;
         }
-    }
-    private Vector3 CalculatePivotSwing(
-        ref float swingAngle,
-        ref float angularVelocity,
-        Vector3 pivotPosition,
-        float ropeLength,
-        float deltaTime)
-    {
-        float gravity = 9.81f;
-
-        // Pendulum angular acceleration
-        float angularAcceleration = -(gravity / ropeLength) * Mathf.Sin(swingAngle);
-
-        // Update angular velocity + angle
-        angularVelocity += angularAcceleration * deltaTime;
-        swingAngle += angularVelocity * deltaTime;
-
-        // Constrained offset from pivot
-        Vector3 offset = new Vector3(
-            Mathf.Sin(swingAngle),
-            -Mathf.Cos(swingAngle),
-            0f
-        ) * ropeLength;
-
-        // Return absolute new position
-        return pivotPosition + offset;
     }
 }
