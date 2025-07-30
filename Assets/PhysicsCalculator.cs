@@ -8,12 +8,11 @@ public class PhysicsCalculator
         Vector3 currentVelocity,
         float moveSpeed,
         float moveDir,
-        float queuedDir,
         float airMoveValue,
         float gravityStrength,
         float jumpStrength,
-        float swingAngle,
-        float angularVelocity,
+        ref float swingAngle,
+        ref float angularVelocity,
         Vector3 pivotPosition,
         float ropeLength,
         float deltaTime
@@ -24,33 +23,55 @@ public class PhysicsCalculator
             //------------------------------------------------------------------------------------- GROUNDED ----------------------------------------------------------------------------------------------
             case MovementState.Grounded:
                 currentVelocity.x = moveDir * moveSpeed;
-                currentVelocity.y = 0f; // No vertical movement
-                break;
+                currentVelocity.y = 0f;
+                return currentVelocity;
 
             //------------------------------------------------------------------------------------- AIRBORNE ----------------------------------------------------------------------------------------------
             case MovementState.Airborne:
-                // Burst in one direction
-                //if (queuedDir != 0)
-                //{
-                //    currentVelocity.x = queuedDir * moveSpeed;
-                //    // queuedDir cleared automatically in PlayerController after 1 frame
-                //}
-
-                // --- Continuous Airborne horizontal control ---
-                // Smoothly lerp toward new input in air
-                float targetAirSpeed = moveDir * moveSpeed;
-                currentVelocity.x = Mathf.Lerp(currentVelocity.x, targetAirSpeed, airMoveValue * deltaTime);
-
-                currentVelocity.y += gravityStrength * deltaTime; //Gravity
-
-                break;
+                float targetAirSpeed = moveDir * airMoveValue;
+                currentVelocity.x = Mathf.Lerp(currentVelocity.x, targetAirSpeed, 0.1f);
+                // Gravity
+                currentVelocity.y -= gravityStrength * deltaTime;
+                return currentVelocity;
 
             //--------------------------------------------------------------------------------------- PIVOT ----------------------------------------------------------------------------------------------
             case MovementState.Pivot:
-                // Placeholder for later (swing mechanics)
-                break;
-        }
+                return CalculatePivotSwing(
+                    ref swingAngle,
+                    ref angularVelocity,
+                    pivotPosition,
+                    ropeLength,
+                    deltaTime
+                );
 
-        return currentVelocity;
+            default:
+                return currentVelocity;
+        }
+    }
+    private Vector3 CalculatePivotSwing(
+        ref float swingAngle,
+        ref float angularVelocity,
+        Vector3 pivotPosition,
+        float ropeLength,
+        float deltaTime)
+    {
+        float gravity = 9.81f;
+
+        // Pendulum angular acceleration
+        float angularAcceleration = -(gravity / ropeLength) * Mathf.Sin(swingAngle);
+
+        // Update angular velocity + angle
+        angularVelocity += angularAcceleration * deltaTime;
+        swingAngle += angularVelocity * deltaTime;
+
+        // Constrained offset from pivot
+        Vector3 offset = new Vector3(
+            Mathf.Sin(swingAngle),
+            -Mathf.Cos(swingAngle),
+            0f
+        ) * ropeLength;
+
+        // Return absolute new position
+        return pivotPosition + offset;
     }
 }

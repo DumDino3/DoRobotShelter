@@ -1,12 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
+
 using UnityEngine;
 
 public class PivotManager : MonoBehaviour
 {
     [Header("Detection Settings")]
-    public LayerMask pivotLayer;           // Layer mask for pivot points
-    public float pivotDetectionRadius = 5f;// How far you can detect pivots
+    public LayerMask pivotLayer;
+    public float pivotDetectionRadius = 5f;
 
     [Header("Runtime Info")]
     public Transform currentPivot; // Closest pivot this frame
@@ -17,22 +16,31 @@ public class PivotManager : MonoBehaviour
         // Find all colliders in detection radius
         Collider[] hits = Physics.OverlapSphere(origin, pivotDetectionRadius, pivotLayer);
 
+        if (hits.Length == 0)
+        {
+            //Debug.Log("NO pivots in range!");
+            currentPivot = null;
+            return;
+        }
+
+        //Debug.Log("Found " + hits.Length + " pivots in range.");
+
         currentPivot = null;
         currentPivotDistance = Mathf.Infinity;
-
-        if (hits.Length == 0)
-            return;
 
         // Find closest pivot
         foreach (var h in hits)
         {
             float dist = Vector3.Distance(origin, h.transform.position);
+            //Debug.Log("Pivot candidate: " + h.name + " distance=" + dist);
+
             if (dist < currentPivotDistance)
             {
                 currentPivotDistance = dist;
                 currentPivot = h.transform;
             }
         }
+        //Debug.Log("Closest pivot now: " + (currentPivot ? currentPivot.name : "NONE"));
     }
 
     private void OnDrawGizmosSelected()

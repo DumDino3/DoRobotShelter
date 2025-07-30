@@ -1,4 +1,4 @@
-using Unity.VisualScripting;
+
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
@@ -9,27 +9,29 @@ public class PlayerController : MonoBehaviour
     public PivotManager pivotManager;
 
     [Header("MOVEMENT SETTINGS")]
-    public float moveSpeed = 5f;
-    public float gravityStrength = -20f;
-    public float airMoveValue = 0.1f;
-    public float jumpStrength = 0.1f;
+    public float moveSpeed;
+    public float gravityStrength;
+    public float airMoveValue;
+    public float jumpStrength;
 
     [Header("RUNTIME STATE")]
     public float moveDir;
-    public float queuedDir; // saved direction at jump
     public Vector3 velocity;
+    public GameObject Body;
     public MovementState currentState = MovementState.Grounded;
 
+    [Header("COLLISION CHECKER")]
     public bool wallLeftHit = false;
     public bool wallRightHit = false;
     public bool ceilingHit = false;
     public bool isGrounded = true;
 
-    private Transform pivotTarget;
-    private Vector3 pivotPosition;
-    private float ropeLength;
+    [Header("PIVOT TWEAKER")]
+    public float ropeLength;
+    public float speed;
+    public float angularVelocity;
     private float swingAngle;
-    private float angularVelocity;
+    private Vector3 pivotPosition;  
 
 
     //------------------------------------------------------------------------------------------------- ON UPDATE -------------------------------------------------------------------------------------------------
@@ -38,45 +40,76 @@ public class PlayerController : MonoBehaviour
     {
         ReadInput();
 
-        // Calculate velocity using PhysicsCalculator
-        velocity = physicsCalculator.CalculateVelocity(
-            currentState,
-            velocity,
-            moveSpeed,
-            moveDir,
-            queuedDir,
-            airMoveValue,
-            gravityStrength,
-            jumpStrength,
-            ref swingAngle,
-            ref angularVelocity,
-            pivotPosition,
-            ropeLength,
-            Time.deltaTime
-        );
-        //ClearQueuedDir();
+        if (moveDir > 0)
+        {
+            Vector3 localEuler = Body.transform.localEulerAngles;
+            localEuler.y = -6.445f;
+            Body.transform.localEulerAngles = localEuler;
+        }
 
-        CollisionCheck();
-        //if (currentState == MovementState.Airborne && queuedDir != 0)
-        //{
-        //    queuedDir = 0; // clear after first airborne calculation
-        //}
-        ApplyVelocity();
+        else if (moveDir < 0)
+        {
+            Vector3 localEuler = Body.transform.localEulerAngles;
+            localEuler.y = -6.445f + 180f;
+            Body.transform.localEulerAngles = localEuler;
+        }
 
-        if (currentState == MovementState.Airborne)
-            pivotManager.DetectClosestPivot(transform.position);
+            Debug.Log(currentState);
+
+        DetectPivotIfAirborne();
+
+
+
+        //Different pivot logic
+        if (currentState == MovementState.Pivot)
+        {
+            Vector3 newPos = physicsCalculator.CalculateVelocity(
+                currentState,
+                velocity,
+                moveSpeed,
+                moveDir,
+                airMoveValue,
+                gravityStrength,
+                jumpStrength,
+                ref swingAngle,
+                ref angularVelocity,
+                pivotPosition,
+                ropeLength,
+                Time.deltaTime);
+
+            transform.position = newPos;
+            velocity = Vector3.zero;
+        }
+        //Normal movement logic
+        else
+        {
+            velocity = physicsCalculator.CalculateVelocity(
+                currentState,
+                velocity,
+                moveSpeed,
+                moveDir,
+                airMoveValue,
+                gravityStrength,
+                jumpStrength,
+                ref swingAngle,
+                ref angularVelocity,
+                pivotPosition,
+                ropeLength,
+                Time.deltaTime);
+            CollisionCheck();
+            ApplyVelocity();
+        }
     }
 
 
-    //------------------------------------------------------------------------------------------------- HEHE -------------------------------------------------------------------------------------------------
+    //------------------------------------------------------------------------------------------------- INPUT -------------------------------------------------------------------------------------------------
 
     void ReadInput() //This has been put in update
     {
         // Basic horizontal input
-        float input = 0f;
-        if (Input.GetKey(KeyCode.A)) input = -1f;
-        if (Input.GetKey(KeyCode.D)) input = +1f;
-        moveDir = input;
+        moveDir = 0;
+        if (Input.GetKey(KeyCode.A)) moveDir = -1;
+        if (Input.GetKey(KeyCode.D)) moveDir = 1;
 
         //Space input
         if (Input.GetKeyDown(KeyCode.Space) && currentState == MovementState.Grounded && isGrounded) //Grounded -> Airborne jump
@@ -85,20 +118,21 @@ public class PlayerController : MonoBehaviour
             EnterAirborne(); // force airborne
         }
 
-        //J input
-        if (currentState == MovementState.Airborne &&
-            pivotManager.currentPivot != null &&
-            Input.GetKeyDown(KeyCode.J))
+        //Enable pivot attach if airborne
+        if (pivotManager.currentPivot != null && Input.GetKeyDown(KeyCode.J))
         {
-            AttachToPivot(pivotManager.currentPivotCandidate);
+            AttachToPivot(pivotManager.currentPivot);
         }
 
-        //J input
+        // Pivot release
         if (currentState == MovementState.Pivot && Input.GetKeyUp(KeyCode.J))
         {
+            Debug.Log("unpressed J");
             DetachFromPivot();
         }
     }
+
+    //------------------------------------------------------------------------------------------------- PHYSICS -------------------------------------------------------------------------------------------------
 
     void ApplyVelocity()
     {
@@ -111,6 +145,17 @@ public class PlayerController : MonoBehaviour
     void CollisionCheck()
     {
         raycastDetector.CheckEnvironment();
+
+        //Grounding logic
+        if (!isGrounded && currentState != MovementState.Airborne && currentState != MovementState.Pivot)
+        {
+            EnterAirborne();
+        }
+        else if (isGrounded && currentState == MovementState.Airborne && velocity.y <= 0)
+        {
+            EnterGrounded();
+        }
+
         //Ceiling
         if (ceilingHit && velocity.y > 0)
         {
@@ -126,30 +171,10 @@ public class PlayerController : MonoBehaviour
         {
             velocity.x = 0;
         }
-
-        //Grounding logic
-        if (!isGrounded && currentState != MovementState.Airborne)
-        {
-            EnterAirborne();
-        }
-        else if (isGrounded && currentState == MovementState.Airborne && velocity.y <= 0)
-        {
-            EnterGrounded();
-        }
     }
-
-    //void ClearQueuedDir()
-    //{
-    //    if (currentState == MovementState.Airborne && queuedDir != 0)
-    //    {
-    //        queuedDir = 0; //clear after first airborne calculation
-    //    }
-    //}
-
-    //------------------------------------------------------------------------------------------------- STATE ENTER LOGIC -------------------------------------------------------------------------------------------------
+    //------------------------------------------------------------------------------------------------- STATE LOGIC -------------------------------------------------------------------------------------------------
     void EnterAirborne()
     {
-        queuedDir = moveDir;      // save current horizontal intent
         isGrounded = false;
         currentState = MovementState.Airborne;
     }
@@ -158,6 +183,55 @@ public class PlayerController : MonoBehaviour
     {
         currentState = MovementState.Grounded;
         velocity.y = 0f;   // reset vertical velocity
+    }
+
+    void DetectPivotIfAirborne()
+    {
+        if (currentState == MovementState.Airborne)
+        {
+            pivotManager.DetectClosestPivot(transform.position);
+        }
+    }
+
+    void AttachToPivot(Transform pivot)
+    {
+        pivotPosition = pivot.position;
+
+        // Calculate rope length
+        //ropeLength = Vector3.Distance(transform.position, pivotPosition);
+
+        // Calculate angle relative to vertical down
+        Vector3 dir = (transform.position - pivotPosition).normalized;
+        swingAngle = Mathf.Atan2(dir.x, -dir.y);
+
+        //  Give initial angular velocity based on horizontal movement
+        // So if you attach mid-run, you swing immediately
+        //float baseAngular = velocity.x / Mathf.Max(ropeLength, 0.01f);
+        //angularVelocity = Mathf.Sign(baseAngular) * Mathf.Max(Mathf.Abs(baseAngular) * 1.5f, 2.3f);
+
+        float baseAngular = Mathf.Abs(velocity.x) / velocity.x;
+        angularVelocity = baseAngular * speed;
+
+        //  SNAP player exactly onto the rope arc
+        Vector3 offset = new Vector3(
+            Mathf.Sin(swingAngle),
+            -Mathf.Cos(swingAngle),
+            0f
+        ) * ropeLength;
+        transform.position = pivotPosition + offset;
+
+        currentState = MovementState.Pivot;
+
+        Debug.Log($"AttachToPivot: {pivot.name}, ropeLength={ropeLength}, swingAngle={swingAngle}, angularVel={angularVelocity}");
+    }
+
+    void DetachFromPivot()
+    {
+        // Compute fling tangent velocity
+        Vector3 tangentDir = new Vector3(Mathf.Cos(swingAngle), Mathf.Sin(swingAngle), 0f);
+        velocity = tangentDir * (angularVelocity * ropeLength);
+
+        currentState = MovementState.Airborne;
     }
 }
 
