@@ -58,8 +58,6 @@ public class PlayerController : MonoBehaviour
 
         DetectPivotIfAirborne();
 
-
-
         //Different pivot logic
         if (currentState == MovementState.Pivot)
         {
